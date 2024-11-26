@@ -1,0 +1,4 @@
+module.exports = [
+    "YOUR_SOC_TOKEN_CONTRACT_ADDRESS",
+    "0x0035BA744A3e304c88040Ce6D5D1619881c4cbd5",
+];
