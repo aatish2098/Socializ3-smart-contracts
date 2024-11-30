@@ -2,54 +2,53 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./SOCToken.sol";
 
 contract RewardDistributor is Ownable {
-    IERC20 public socToken;
-    address public advertiserAccount;
+    SOCToken public socToken;
+    address public advertiserPool;
 
-    /**
-     * @dev Constructor that sets the SOCToken contract address and advertiser's account.
-     * @param socTokenAddress Address of the deployed SOCToken contract.
-     * @param advertiserAccountAddress Address of the advertiser's account holding the tokens.
-     */
-    constructor(address socTokenAddress, address advertiserAccountAddress) {
-        socToken = IERC20(socTokenAddress);
-        advertiserAccount = advertiserAccountAddress;
+    constructor(address socTokenAddress, address _advertiserPool, address initialOwner) Ownable(initialOwner) {
+        socToken = SOCToken(socTokenAddress);
+        advertiserPool = _advertiserPool;
     }
 
     /**
-     * @dev Distribute rewards to recipients based on engagement scores.
+     * @dev Distribute rewards to users based on their engagement scores.
      * @param recipients Array of recipient addresses.
-     * @param engagementScores Array of engagement scores corresponding to each recipient.
+     * @param engagementScores Array of individual engagement scores.
+     * @param totalEngagementScore Total engagement score across all users.
      */
-    function distributeRewards(address[] calldata recipients, uint256[] calldata engagementScores) external onlyOwner {
+    function distributeRewards(
+        address[] calldata recipients,
+        uint256[] calldata engagementScores,
+        uint256 totalEngagementScore
+    ) external onlyOwner {
+
         require(recipients.length == engagementScores.length, "Mismatched arrays");
-        require(recipients.length > 0, "No recipients provided");
+        require(totalEngagementScore > 0, "Total engagement score must be > 0");
 
-        uint256 totalEngagement = 0;
-        for (uint256 i = 0; i < engagementScores.length; i++) {
-            totalEngagement += engagementScores[i];
-        }
-        require(totalEngagement > 0, "Total engagement must be greater than zero");
+        // Calculate total tokens available for distribution
+        uint256 totalTokens = socToken.balanceOf(advertiserPool);
+        require(totalTokens > 0, "No tokens to distribute");
 
-        uint256 totalTokens = socToken.balanceOf(advertiserAccount);
-        require(totalTokens > 0, "No tokens available for distribution");
+        // Transfer tokens from advertiserPool to this contract
+        socToken.transferFrom(advertiserPool, address(this), totalTokens);
 
-        // The advertiser must approve this contract to spend tokens on their behalf
+        // Distribute tokens to each recipient
         for (uint256 i = 0; i < recipients.length; i++) {
-            uint256 rewardAmount = (engagementScores[i] * totalTokens) / totalEngagement;
-            if (rewardAmount > 0) {
-                socToken.transferFrom(advertiserAccount, recipients[i], rewardAmount);
+            uint256 reward = (totalTokens * engagementScores[i]) / totalEngagementScore;
+            if (reward > 0) {
+                socToken.transfer(recipients[i], reward);
             }
         }
     }
-
-    /**
-     * @dev Update the advertiser's account address.
-     * @param newAdvertiserAccount The new advertiser account address.
-     */
-    function setAdvertiserAccount(address newAdvertiserAccount) external onlyOwner {
-        advertiserAccount = newAdvertiserAccount;
+    function updateSocTokenAddress(address newSocToken) external onlyOwner {
+        socToken = SOCToken(newSocToken);
     }
+
+    function updateAdvertiserPool(address newAdvertiserPool) external onlyOwner {
+        advertiserPool = newAdvertiserPool;
+    }
+
 }
